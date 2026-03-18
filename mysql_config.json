@@ -1,0 +1,11 @@
+{
+    "mysql": {
+        "host": "localhost",
+        "user": "root",
+        "password": "your_password",
+        "charset": "utf8mb4",
+        "autocommit": true
+    },
+    "database_path": "C:\\Users\\grizz\\OneDrive\\Desktop\\COSC448\\ideas\\model\\DAIL-SQL\\dataset\\spider_mysql\\test_database",
+    "connection_type": "mysql"
+}

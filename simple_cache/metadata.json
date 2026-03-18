@@ -1,0 +1,5 @@
+{
+  "total_examples": 7000,
+  "embedding_dim": 768,
+  "model_name": "sentence-transformers/all-mpnet-base-v2"
+}

@@ -1,0 +1,52 @@
+# --- IDE and OS files ---
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Project data and cache ---
+dataset/
+vector_cache/
+third_party/
+
+# --- Python build / cache ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Virtual environments ---
+.env/
+.venv/
+env/
+venv/
+
+# --- Logs and temp files ---
+*.log
+*.tmp
+*.swp
+*.bak
+
+# --- Jupyter / Colab checkpoints ---
+.ipynb_checkpoints/
+
+# --- Model checkpoints / weights ---
+*.pth
+*.pt
+*.ckpt
+
+# --- System and dependency files ---
+*.egg-info/
+*.egg
+dist/
+build/
+
+# --- VSCode / JetBrains settings ---
+.vscode/
+.idea/
+
+# --- OS sync tools ---
+*.sync/
+*.bak~
+
+
+*.env

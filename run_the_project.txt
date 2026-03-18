@@ -1,0 +1,15 @@
+
+proprocess:
+spider: python data_preprocess.py 
+bird: python data_preprocess.py --data_type bird --data_dir ./dataset/bird
+cosc304: python data_preprocess.py --data_dir "./dataset/cosc304" --data_type "cosc304"    
+
+python data_preprocess.py --data_dir ./dataset/cosc304 --data_type cosc304 --use_meaning --compress
+
+
+generate question:
+filter:
+python generate_question.py --data_type cosc304 --split test --tokenizer gpt-3.5-turbo --max_seq_len 4096 --prompt_repr SQLFILTER --k_shot 3 --example_type QA --selector_type EUCDISQUESTIONMASK
+filter + exmaple:
+python generate_question.py --data_type cosc304 --split test --tokenizer gpt-3.5-turbo --max_seq_len 4096 --prompt_repr SQLFILTER_EXAMPLE --k_shot 3 --example_type QA --selector_type EUCDISQUESTIONMASK
+

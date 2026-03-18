@@ -1,0 +1,9 @@
+{
+  "model_name": "sentence-transformers/all-mpnet-base-v2",
+  "selector_type": "EuclideanDistanceQuestionMaskSelector",
+  "embedding_dim": 768,
+  "n_questions": 8659,
+  "created_at": "2026-03-04 15:12:04",
+  "cache_key": "sentence_transformers_all_mpnet_base_v2_EuclideanDistanceQuestionMaskSelector_891ea57a",
+  "questions_hash": "891ea57a88d8ea016ae9ade1539e0e79"
+}

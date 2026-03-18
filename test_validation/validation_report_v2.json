@@ -1,0 +1,1616 @@
+{
+  "predicted": {
+    "total": 92,
+    "passed": 76,
+    "failed": 16,
+    "results": [
+      {
+        "sql": "SELECT count(*) FROM continents",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM continents",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.ContId , T1.Continent, count(*) FROM continents AS T1 JOIN countries AS T2 ON T1.ContId = T2.Continent GROUP BY T1.ContId",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.ContId , T1.Continent, count(*) FROM continents AS T1 JOIN countries AS T2 ON T1.ContId = T2.Continent GROUP BY T1.ContId",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM countries",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM countries",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT car_makers.FullName, car_makers.Id, COUNT(model_list.Model) FROM car_makers JOIN model_list ON car_makers.Id = model_list.Maker GROUP BY car_makers.Id, car_makers.FullName",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.Id, T1.FullName, COUNT(*) FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker GROUP BY T1.Id, T1.FullName",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Model FROM model_list WHERE Maker = (SELECT Maker FROM car_makers WHERE Country = (SELECT Country FROM cars_data ORDER BY Horsepower ASC LIMIT 1))",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Model FROM cars_data JOIN car_names ON cars_data.Id = car_names.MakeId JOIN model_list ON car_names.Model = model_list.Model WHERE Horsepower = ( SELECT MIN ( Horsepower ) FROM cars_data );",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": [
+            "EXECUTION: ambiguous column name: Model"
+          ]
+        },
+        "overall_passed": false,
+        "error_summary": "执行错误"
+      },
+      {
+        "sql": "SELECT model FROM model_list WHERE ModelId IN (SELECT Id FROM cars_data WHERE Weight < (SELECT avg(Weight) FROM cars_data))",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT model FROM model_list WHERE Maker IN (SELECT Maker FROM car_names WHERE MakeId IN (SELECT Id FROM cars_data WHERE Weight < (SELECT AVG(Weight) FROM cars_data)));",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Maker FROM car_makers WHERE Id IN (SELECT Maker FROM model_list WHERE ModelId IN (SELECT Model FROM car_names WHERE MakeId IN (SELECT Id FROM cars_data WHERE Year = 1970)))",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT DISTINCT T1.Maker FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker JOIN car_names AS T3 ON T2.Model = T3.Model JOIN cars_data AS T4 ON T3.MakeId = T4.Id WHERE T4.Year = 1970",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.Make , T1.Year FROM cars_data AS T1 JOIN car_names AS T2 ON T1.Id = T2.MakeId ORDER BY T1.Year ASC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC: 列不存在 't1.make' | 可用列: accelerate, cylinders, edispl, horsepower, id, mpg, weight, year"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT T1.Maker, T2.Year FROM car_makers AS T1 JOIN cars_data AS T2 ON T1.Id = T2.Id ORDER BY T2.Year ASC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'cars_data' 应连接到外键: car_names.makeid",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: cars_data"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT DISTINCT Model FROM model_list WHERE Maker IN (SELECT Id FROM car_makers WHERE Country IN (SELECT CountryId FROM countries WHERE Continent IN (SELECT ContId FROM continents))) AND ModelId IN (SELECT MakeId FROM cars_data WHERE Year > 1980)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": [
+            "EXECUTION: no such column: MakeId"
+          ]
+        },
+        "overall_passed": false,
+        "error_summary": "执行错误"
+      },
+      {
+        "sql": "SELECT DISTINCT T1.Model FROM model_list AS T1 JOIN cars_data AS T2 ON T1.ModelId = T2.Id WHERE T2.Year > 1980",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'cars_data' 应连接到外键: car_names.makeid",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: cars_data"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT T1.Continent , COUNT(*) FROM continents AS T1 JOIN countries AS T2 ON T1.ContId = T2.Continent JOIN car_makers AS T3 ON T2.CountryId = T3.Country GROUP BY T1.ContId",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.Continent , COUNT(*) FROM continents AS T1 JOIN countries AS T2 ON T1.ContId = T2.Continent JOIN car_makers AS T3 ON T2.CountryId = T3.Country GROUP BY T1.Continent",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT countries.CountryName FROM car_makers JOIN countries ON car_makers.Country = countries.CountryId GROUP BY countries.CountryName ORDER BY COUNT(*) DESC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.CountryName FROM countries AS T1 JOIN car_makers AS T2 ON T1.CountryId = T2.Country GROUP BY T1.CountryName ORDER BY count(*) DESC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.FullName , COUNT(*) FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker GROUP BY T1.FullName",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT car_makers.Id, car_makers.FullName, COUNT(model_list.Model) FROM car_makers JOIN model_list ON car_makers.Id = model_list.Maker GROUP BY car_makers.Id, car_makers.FullName",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Accelerate FROM cars_data WHERE Id IN (SELECT MakeId FROM car_names WHERE Make = 'amc hornet sportabout (sw)')",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Accelerate FROM cars_data WHERE Id IN (SELECT MakeId FROM car_names WHERE Make = 'amc hornet sportabout (sw)')",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM car_makers AS T1 JOIN countries AS T2 ON T1.Country = T2.CountryId WHERE T2.CountryName = 'France'",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(DISTINCT Maker) FROM car_makers WHERE Country IN (SELECT CountryId FROM countries WHERE CountryName = 'France')",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM model_list AS T1 JOIN car_makers AS T2 ON T1.Maker = T2.Id JOIN countries AS T3 ON T2.Country = T3.CountryId WHERE T3.CountryName = 'USA';",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM model_list JOIN car_makers ON model_list.Maker = car_makers.Id JOIN countries ON car_makers.Country = countries.CountryId JOIN continents ON countries.Continent = continents.ContId WHERE continents.Continent = 'North America' AND countries.CountryName = 'United States';",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT avg(MPG) FROM cars_data WHERE Cylinders = 4",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT avg(MPG) FROM cars_data WHERE Cylinders = 4",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT MIN(Weight) FROM cars_data WHERE Cylinders = 8 AND Year = 1974",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT min(Weight) FROM cars_data WHERE Cylinders = 8 AND Year = 1974",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT car_makers.Maker , model_list.Model FROM car_makers JOIN model_list ON car_makers.Id = model_list.Maker",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Maker , Model FROM model_list",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT countries.CountryId, countries.CountryName FROM countries JOIN car_makers ON countries.CountryId = car_makers.Country GROUP BY countries.CountryId, countries.CountryName",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.CountryId, T1.CountryName FROM countries AS T1 JOIN car_makers AS T2 ON T1.CountryId = T2.Country GROUP BY T1.CountryId HAVING COUNT(*) >= 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Horsepower > 150",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Horsepower > 150",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT avg(Weight) , Year FROM cars_data GROUP BY Year",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT avg(Weight) , Year FROM cars_data GROUP BY Year",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T2.CountryName FROM car_makers AS T1 JOIN countries AS T2 JOIN continents AS T3 ON T1.Country = T2.CountryId AND T2.Continent = T3.ContId WHERE T3.Continent = \"Europe\" GROUP BY T2.CountryName HAVING count(*) >= 3",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: countries"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT CountryName FROM countries WHERE Continent IN (SELECT ContId FROM continents WHERE Continent = 'Europe') AND CountryId IN (SELECT Country FROM car_makers GROUP BY Country HAVING COUNT(Id) >= 3)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT max(cars_data.Horsepower), car_names.Make FROM cars_data JOIN car_names ON cars_data.Id = car_names.MakeId WHERE cars_data.Cylinders = 3",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT max(Horsepower), Make FROM cars_data AS T1 JOIN car_names AS T2 ON T1.Id = T2.MakeId WHERE Cylinders = 3",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT model FROM model_list JOIN cars_data ON model_list.ModelId = cars_data.Id ORDER BY MPG DESC LIMIT 1;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'cars_data' 应连接到外键: car_names.makeid",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: cars_data"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT model FROM cars_data AS t1 JOIN model_list AS t2 ON t1.Id = t2.ModelId ORDER BY MPG DESC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'model_list' 应连接到外键: car_names.model, car_makers.id",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: model_list"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT avg(Horsepower) FROM cars_data WHERE Year < 1980",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT avg(Horsepower) FROM cars_data WHERE Year < 1980",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT avg(Edispl) FROM cars_data AS T1 JOIN car_names AS T2 ON T1.Id = T2.MakeId JOIN model_list AS T3 ON T2.Model = T3.Model WHERE T3.Model = 'volvo'",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT avg(cars_data.Edispl) FROM cars_data JOIN car_names ON cars_data.Id = car_names.MakeId JOIN model_list ON car_names.Model = model_list.Model JOIN car_makers ON model_list.Maker = car_makers.Id WHERE car_makers.Maker = 'volvo'",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT max(Accelerate) , Cylinders FROM cars_data GROUP BY Cylinders",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT max(Accelerate) , Cylinders FROM cars_data GROUP BY Cylinders",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Model FROM model_list AS T1 JOIN car_names AS T2 ON T1.ModelId = T2.MakeId GROUP BY T1.Model ORDER BY COUNT(*) DESC LIMIT 1;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'car_names' 应连接到外键: cars_data.id, model_list.model",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: car_names"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT Model FROM model_list GROUP BY Model ORDER BY count(*) DESC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Cylinders > 4",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Cylinders > 4",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Year = 1980;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Year = 1980",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM model_list AS T1 JOIN car_makers AS T2 ON T1.Maker = T2.Id WHERE T2.FullName = \"American Motor Company\";",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker WHERE T1.Maker = \"American Motor Company\"",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.Id, T1.FullName FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker GROUP BY T1.Id HAVING COUNT(*) > 3",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T2.Maker, T2.Id FROM model_list AS T1 JOIN car_makers AS T2 ON T1.Maker = T2.Id GROUP BY T1.Maker HAVING count(T1.ModelId) > 3;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT DISTINCT T3.Model FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker JOIN car_names AS T3 ON T2.ModelId = T3.MakeId JOIN cars_data AS T4 ON T3.MakeId = T4.Id WHERE T1.FullName = 'General Motors' OR T4.Weight > 3500",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'car_names' 应连接到外键: cars_data.id, model_list.model",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: car_names, cars_data"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT Model FROM model_list AS T1 JOIN car_makers AS T2 ON T1.Maker = T2.Id WHERE T2.Maker = 'General Motors' UNION SELECT T3.Model FROM cars_data AS T4 JOIN car_names AS T3 ON T4.Id = T3.MakeId WHERE T4.Weight > 3500",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: car_names"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT Year FROM cars_data WHERE Weight BETWEEN 3000 AND 4000",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Year FROM cars_data WHERE Weight < 4000 INTERSECT SELECT Year FROM cars_data WHERE Weight > 3000",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Horsepower FROM cars_data ORDER BY Accelerate DESC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Horsepower FROM cars_data ORDER BY Accelerate DESC LIMIT 1",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Cylinders FROM cars_data AS T1 JOIN car_names AS T2 ON T1.Id = T2.MakeId JOIN model_list AS T3 ON T2.Model = T3.Model WHERE T3.Model = 'volvo' ORDER BY T1.Accelerate ASC LIMIT 1;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT Cylinders FROM cars_data AS T1 JOIN car_names AS T2 ON T1.Id = T2.MakeId JOIN model_list AS T3 ON T2.Model = T3.Model WHERE T3.Maker = (SELECT Id FROM car_makers WHERE Maker = 'volvo') ORDER BY T1.Accelerate ASC LIMIT 1;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT COUNT(*) FROM cars_data WHERE Accelerate > (SELECT Accelerate FROM cars_data ORDER BY Horsepower DESC LIMIT 1)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Accelerate > (SELECT Accelerate FROM cars_data ORDER BY Horsepower DESC LIMIT 1)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM (SELECT Country FROM car_makers GROUP BY Country HAVING count(*) > 2)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM (SELECT Country FROM car_makers GROUP BY Country HAVING count(*) > 2)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Cylinders > 6",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT count(*) FROM cars_data WHERE Cylinders > 6;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T2.Model FROM cars_data AS T1 JOIN car_names AS T2 ON T1.Id = T2.MakeId WHERE T1.Cylinders = 4 ORDER BY T1.Horsepower DESC LIMIT 1;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T2.Model FROM cars_data AS T1 JOIN model_list AS T2 ON T1.Id = T2.ModelId WHERE T1.Cylinders = 4 ORDER BY T1.Horsepower DESC LIMIT 1;",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'model_list' 应连接到外键: car_names.model, car_makers.id",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: model_list"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT MakeId, Make FROM cars_data JOIN car_names ON cars_data.Id = car_names.MakeId WHERE Horsepower > (SELECT MIN(Horsepower) FROM cars_data) AND Cylinders <= 3",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT MakeId, Make FROM cars_data JOIN car_names ON cars_data.Id = car_names.MakeId WHERE Cylinders < 4 AND Horsepower > (SELECT MIN(Horsepower) FROM cars_data)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT max(MPG) FROM cars_data WHERE Cylinders = 8 OR Year < 1980",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT max(MPG) FROM cars_data WHERE Cylinders = 8 OR Year < 1980",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT model_list.Model FROM model_list JOIN car_makers ON model_list.Maker = car_makers.Id JOIN cars_data ON model_list.ModelId = cars_data.Id WHERE cars_data.Weight < 3500 AND car_makers.Maker != 'Ford Motor Company'",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'cars_data' 应连接到外键: car_names.makeid",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: cars_data"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT model FROM model_list WHERE ModelId IN (SELECT MakeId FROM cars_data WHERE Weight < 3500) AND Maker NOT IN (SELECT Id FROM car_makers WHERE Maker = 'Ford')",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": [
+            "EXECUTION: no such column: MakeId"
+          ]
+        },
+        "overall_passed": false,
+        "error_summary": "执行错误"
+      },
+      {
+        "sql": "SELECT CountryName FROM countries WHERE CountryId NOT IN (SELECT Country FROM car_makers)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT CountryName FROM countries WHERE CountryId NOT IN (SELECT Country FROM car_makers)",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT T1.Id, T1.Maker FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker GROUP BY T1.Id HAVING COUNT(*) >= 2 INTERSECT SELECT T1.Id, T1.Maker FROM car_makers AS T1 JOIN countries AS T2 ON T1.Country = T2.CountryId GROUP BY T2.CountryId HAVING COUNT(*) > 3",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC: 列不存在 't2.maker' | 可用列: continent, countryid, countryname",
+            "LOGIC_FK: JOIN 缺失外键 | 表 'model_list' 应连接到外键: car_names.model, car_makers.id",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: model_list"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT T1.Id, T1.Maker FROM car_makers AS T1 JOIN model_list AS T2 ON T1.Id = T2.Maker JOIN cars_data AS T3 ON T2.ModelId = T3.Id GROUP BY T1.Id HAVING COUNT(DISTINCT T2.Model) >= 2 AND COUNT(T3.Id) > 3",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": false,
+          "errors": [
+            "LOGIC_FK: JOIN 缺失外键 | 表 'cars_data' 应连接到外键: car_names.makeid",
+            "LOGIC_CONN: 表未连通 | 无法通过 JOIN 连接: cars_data"
+          ]
+        },
+        "stage3_execution": {
+          "passed": false,
+          "errors": []
+        },
+        "overall_passed": false,
+        "error_summary": "逻辑错误"
+      },
+      {
+        "sql": "SELECT CountryId, CountryName FROM countries WHERE CountryId IN (SELECT Country FROM car_makers GROUP BY Country HAVING COUNT(Id) > 3) OR CountryId IN (SELECT Country FROM car_makers WHERE Id IN (SELECT Maker FROM model_list WHERE Model = 'fiat'))",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      },
+      {
+        "sql": "SELECT CountryId, CountryName FROM countries WHERE CountryId IN (SELECT Country FROM car_makers GROUP BY Country HAVING COUNT(*) > 3) OR CountryId IN (SELECT Country FROM car_makers WHERE Id IN (SELECT Maker FROM model_list WHERE Model = 'Fiat'))",
+        "stage1_syntax": {
+          "passed": true,
+          "errors": []
+        },
+        "stage2_logic": {
+          "passed": true,
+          "errors": []
+        },
+        "stage3_execution": {
+          "passed": true,
+          "errors": []
+        },
+        "overall_passed": true,
+        "error_summary": ""
+      }
+    ]
+  }
+}

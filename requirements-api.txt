@@ -1,0 +1,26 @@
+# FastAPI相关依赖
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic>=2.7.0
+
+# 环境变量管理
+python-dotenv
+
+# HTTP和网络
+requests==2.31.0
+httpx==0.25.2
+
+# 已有依赖（从requirements.txt）
+protobuf==3.20.*
+tqdm
+openai
+numpy
+transformers
+torch
+stanford-corenlp
+sql_metadata
+bpemb
+torchtext
+sentence_transformers
+attrs
+nltk
