@@ -1,3 +1,12 @@
+# NL2SQL VSCode Plugin Server
+
+A backend server for the NL2SQL VSCode Plugin, built upon **DAIL-SQL** with enhanced reliability and accuracy.
+
+This system introduces a **three-layer validation module** to improve execution correctness and robustness.  
+It achieves **87.5% accuracy on the Spider benchmark**, outperforming the original DAIL-SQL setup in practical scenarios.
+
+---
+
 ## ⚙️ Environment Setup
 
 ### Prerequisites
