@@ -182,6 +182,12 @@ class SpiderEncoderV2Preproc(abstract_preproc.AbstractPreproc):
         question, _ = self._tokenize_for_copying(compute_question_toks, compute_question)
         _, question_for_copying = self._tokenize_for_copying(original_question_toks, original_question)
 
+        # Debug output for lemmatization / tokenization check
+        print(f"[DEBUG] original_question={original_question}")
+        print(f"[DEBUG] question={question}")
+        print(f"[DEBUG] question_for_copying={question_for_copying}")
+        print(f"[DEBUG] use_meaning={self.use_meaning}, word_emb={type(self.word_emb).__name__}")
+
         # 4. handle schema
         preproc_schema = self._preprocess_schema(schema)
 

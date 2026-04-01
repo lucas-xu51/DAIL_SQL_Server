@@ -11,9 +11,10 @@ from difflib import SequenceMatcher
 class ImprovedSQLValidator:
     """改进的 SQL 验证器 - 支持别名识别和大小写不敏感"""
     
-    def __init__(self, db_path: str, schema_sql_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, schema_sql_path: Optional[str] = None, schema_dict: Optional[Dict] = None):
         self.db_path = db_path
         self.schema_sql_path = schema_sql_path
+        self.schema_dict = schema_dict
         self.conn = None
         self.formal_schema = {'Tabs': set(), 'Cols': {}, 'FKs': set()}
         self.alias_map = {}  # 别名 -> 真实表名
@@ -21,6 +22,13 @@ class ImprovedSQLValidator:
     
     def _build_schema(self):
         """从数据库提取 schema，并补充 SQL schema 文件中的外键"""
+        if self.schema_dict is not None:
+            self._build_schema_from_dict(self.schema_dict)
+            return
+
+        if not self.db_path:
+            raise ValueError("db_path is required when schema_dict is not provided")
+
         try:
             self.conn = sqlite3.connect(self.db_path)
             cursor = self.conn.cursor()
@@ -68,6 +76,78 @@ class ImprovedSQLValidator:
         except Exception as e:
             print(f"✗ 数据库加载失败: {e}")
             raise
+
+    def _build_schema_from_dict(self, schema_dict: Dict):
+        """从前端传入的 schema 字典构建验证所需结构。"""
+        tabs = set()
+        cols_map = defaultdict(set)
+        fks = set()
+
+        # Format A: Spider-like schema dict
+        table_names = schema_dict.get('table_names_original') or schema_dict.get('table_names') or []
+        column_names = schema_dict.get('column_names_original') or schema_dict.get('column_names') or []
+        foreign_keys = schema_dict.get('foreign_keys') or []
+
+        if table_names and column_names:
+            normalized_tables = [str(t).lower() for t in table_names]
+            tabs.update(normalized_tables)
+
+            def _parse_column_entry(entry):
+                # column_names_original entry format: [table_id, column_name]
+                if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                    return entry[0], entry[1]
+                return None, None
+
+            # Build column map
+            for entry in column_names:
+                table_id, column_name = _parse_column_entry(entry)
+                if table_id is None or int(table_id) < 0:
+                    continue
+                table_idx = int(table_id)
+                if 0 <= table_idx < len(normalized_tables):
+                    cols_map[normalized_tables[table_idx]].add(str(column_name).lower())
+
+            # Build FK map from index pairs
+            for fk in foreign_keys:
+                if not (isinstance(fk, (list, tuple)) and len(fk) >= 2):
+                    continue
+                src_idx, dst_idx = int(fk[0]), int(fk[1])
+                if src_idx < 0 or dst_idx < 0:
+                    continue
+                if src_idx >= len(column_names) or dst_idx >= len(column_names):
+                    continue
+
+                src_tid, src_col = _parse_column_entry(column_names[src_idx])
+                dst_tid, dst_col = _parse_column_entry(column_names[dst_idx])
+                if src_tid is None or dst_tid is None:
+                    continue
+                if int(src_tid) < 0 or int(dst_tid) < 0:
+                    continue
+                if int(src_tid) >= len(normalized_tables) or int(dst_tid) >= len(normalized_tables):
+                    continue
+
+                fks.add((
+                    normalized_tables[int(src_tid)],
+                    str(src_col).lower(),
+                    normalized_tables[int(dst_tid)],
+                    str(dst_col).lower()
+                ))
+
+        # Format B: already normalized schema
+        elif 'Tabs' in schema_dict and 'Cols' in schema_dict:
+            tabs = {str(t).lower() for t in schema_dict.get('Tabs', [])}
+            raw_cols = schema_dict.get('Cols', {})
+            for table, columns in raw_cols.items():
+                cols_map[str(table).lower()] = {str(c).lower() for c in columns}
+
+            raw_fks = schema_dict.get('FKs', [])
+            for fk in raw_fks:
+                if isinstance(fk, (list, tuple)) and len(fk) == 4:
+                    fks.add((str(fk[0]).lower(), str(fk[1]).lower(), str(fk[2]).lower(), str(fk[3]).lower()))
+
+        self.formal_schema['Tabs'] = set(tabs)
+        self.formal_schema['Cols'] = {k: set(v) for k, v in cols_map.items()}
+        self.formal_schema['FKs'] = set(fks)
     
     def _extract_fks_from_sql_file(self, sql_file_path: str) -> Set[Tuple[str, str, str, str]]:
         """从 SQL schema 文件中提取外键定义"""
@@ -913,6 +993,9 @@ class ImprovedSQLValidator:
     
     def _check_column_value_match(self, table: str, column: str, search_value: str, threshold: float) -> str:
         """检查列值匹配并提供建议"""
+        if self.conn is None:
+            return None
+
         try:
             cursor = self.conn.cursor()
             # 获取该列的不重复值
@@ -1038,6 +1121,9 @@ class ImprovedSQLValidator:
         execution_status: 'success', 'empty', 'failed'
         """
         errors = []
+
+        if self.conn is None:
+            return (True, ["INFO: Execution skipped (no database connection provided)"], 'skipped')
         
         try:
             cursor = self.conn.cursor()
@@ -1062,6 +1148,9 @@ class ImprovedSQLValidator:
         返回: (passed, errors)
         """
         errors = []
+
+        if self.conn is None:
+            return (True, [])
         
         try:
             cursor = self.conn.cursor()
@@ -1170,7 +1259,7 @@ class ImprovedSQLValidator:
                         f"UNQUALIFIED_COLUMN_AMBIGUOUS: Column '{col}' appears in multiple tables {sorted(found_in)}. Consider qualifying with table name or alias."
                     )
         return messages
-    def validate_comprehensive(self, sql: str) -> Dict[str, any]:
+    def validate_comprehensive(self, sql: str, include_execution: bool = True) -> Dict[str, any]:
         """完整验证"""
         # 重置别名映射
         self.alias_map = {}
@@ -1182,7 +1271,8 @@ class ImprovedSQLValidator:
             'stage3_execution': {'passed': False, 'errors': [], 'status': ''},
             'stage4_distinct': {'passed': False, 'errors': []},
             'overall_passed': False,
-            'error_summary': ''
+            'error_summary': '',
+            'all_errors': []
         }
 
         # Stage 1: 语法
@@ -1191,6 +1281,7 @@ class ImprovedSQLValidator:
 
         if not syntax_passed:
             result['error_summary'] = '语法错误'
+            result['all_errors'] = syntax_errors
             return result
 
         # Stage 2: 逻辑
@@ -1199,6 +1290,15 @@ class ImprovedSQLValidator:
 
         if not logic_passed:
             result['error_summary'] = '逻辑错误'
+            result['all_errors'] = logic_errors
+            return result
+
+        if not include_execution:
+            result['stage3_execution'] = {'passed': True, 'errors': ["INFO: Execution validation skipped by configuration"], 'status': 'skipped'}
+            result['stage4_distinct'] = {'passed': True, 'errors': []}
+            result['overall_passed'] = True
+            result['error_summary'] = ''
+            result['all_errors'] = []
             return result
 
         # Stage 3: 执行
@@ -1208,6 +1308,7 @@ class ImprovedSQLValidator:
         # 只有真正的执行错误（failed）才视为失败，空结果（empty）不视为错误
         if not exec_passed and exec_status == 'failed':
             result['error_summary'] = '执行错误'
+            result['all_errors'] = exec_errors
             return result
 
         # Stage 4: DISTINCT检查 - 只有前面所有阶段都通过且有结果时才执行
@@ -1220,6 +1321,7 @@ class ImprovedSQLValidator:
             if not distinct_passed:
                 result['error_summary'] = 'DISTINCT相关建议'
                 result['overall_passed'] = False  # DISTINCT问题也算作需要修复的问题
+                result['all_errors'] = distinct_errors
                 return result
         else:
             # 如果执行结果为空或失败，跳过DISTINCT检查
@@ -1231,6 +1333,14 @@ class ImprovedSQLValidator:
             result['error_summary'] = '执行结果为空（但SQL有效）'
         else:
             result['error_summary'] = ''
+
+        # 聚合错误，便于外部统一使用
+        aggregated_errors = []
+        for stage_key in ('stage1_syntax', 'stage2_logic', 'stage3_execution', 'stage4_distinct'):
+            stage_errors = result.get(stage_key, {}).get('errors', [])
+            if stage_errors:
+                aggregated_errors.extend(stage_errors)
+        result['all_errors'] = aggregated_errors
 
         return result
     

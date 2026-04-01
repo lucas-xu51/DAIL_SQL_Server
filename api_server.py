@@ -19,6 +19,7 @@ import sys
 import json
 import time
 import traceback
+import numpy as np
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -54,6 +55,7 @@ from prompt.prompt_builder import prompt_factory, get_repr_cls, get_example_form
 from utils.data_builder import load_data
 from utils.enums import REPR_TYPE, EXAMPLE_TYPE, SELECTOR_TYPE, LLM
 from utils.utils import get_tables  # Add get_tables import
+from utils.linking_utils.application import mask_question_with_schema_linking
 from test_validation.sql_validator_v2 import ImprovedSQLValidator
 from llm.chatgpt import ask_llm, init_chatgpt
 from utils.post_process import process_duplication
@@ -69,6 +71,9 @@ class TextToSQLRequest(BaseModel):
     """Text-to-SQL request model"""
     question: str = Field(..., description="Natural language question")
     database_id: str = Field(..., description="Database ID")
+    schema: Optional[Dict[str, Any]] = Field(default=None, description="Optional frontend extracted schema dictionary")
+    cv_link: Optional[Dict[str, Any]] = Field(default=None, description="Optional frontend extracted cell-value linking (num_date_match/cell_match)")
+    question_for_copying: Optional[List[str]] = Field(default=None, description="Optional tokenized question from frontend to align cv_link q_id")
     
     # Configuration parameters (optional, supports None values)
     model: Optional[str] = Field(default="gpt-4", description="LLM model")
@@ -79,6 +84,8 @@ class TextToSQLRequest(BaseModel):
     # Advanced configuration (optional, supports None values)
     use_self_consistency: Optional[bool] = Field(default=False, description="Whether to use self-consistency voting")
     n_candidates: Optional[int] = Field(default=1, description="Number of SQL candidates")
+    user_fewshots: Optional[List[Dict[str, Any]]] = Field(default=None, description="User-provided local few-shot memory pool")
+    user_fewshot_count: Optional[int] = Field(default=1, description="How many user few-shots to inject (default 1)")
 
 class SQLResult(BaseModel):
     """Single SQL result"""
@@ -130,8 +137,12 @@ class UploadDatabaseResponse(BaseModel):
 class GeneratePromptRequest(BaseModel):
     """Request to generate a DAIL-SQL prompt (for Copilot integration)"""
     question: str = Field(..., description="Natural language question")
-    database_id: str = Field(..., description="Database ID")
+    database_id: Optional[str] = Field(default=None, description="Database ID")
+    schema: Optional[Dict[str, Any]] = Field(default=None, description="Frontend extracted schema dictionary")
+    cv_link: Optional[Dict[str, Any]] = Field(default=None, description="Frontend extracted cell-value linking (num_date_match/cell_match)")
     k_shot: Optional[int] = Field(default=3, description="Number of few-shot examples")
+    user_fewshots: Optional[List[Dict[str, Any]]] = Field(default=None, description="User-provided local few-shot memory pool")
+    user_fewshot_count: Optional[int] = Field(default=1, description="How many user few-shots to inject (default 1)")
 
 class GeneratePromptResponse(BaseModel):
     """Response containing the constructed prompt and a session ID for follow-up validation"""
@@ -141,11 +152,35 @@ class GeneratePromptResponse(BaseModel):
     database_id: str
     question: str
     error: Optional[str] = None
+    debug_info: Optional[Dict[str, Any]] = None
+
+class TokenizeRequest(BaseModel):
+    """Request to tokenize question for consistent cv_link"""
+    question: str = Field(..., description="Natural language question")
+    database_id: Optional[str] = Field(default=None, description="Database ID")
+    schema: Optional[Dict[str, Any]] = Field(default=None, description="Optional frontend schema dictionary to use")
+
+class TokenizeResponse(BaseModel):
+    """Tokenization response returning backend-standard tokens"""
+    success: bool
+    question_for_copying: List[str]
+    question_toks: Optional[List[str]] = None
+    error: Optional[str] = None
+
+class TextEmbeddingRequest(BaseModel):
+    texts: List[str]
+
+class TextEmbeddingResponse(BaseModel):
+    success: bool
+    embeddings: Optional[List[List[float]]] = None
+    error: Optional[str] = None
 
 class ValidateSQLRequest(BaseModel):
     """Request to validate a SQL string returned by Copilot"""
     session_id: str = Field(..., description="Session ID from generate-prompt")
     sql: str = Field(..., description="SQL string to validate")
+    schema: Optional[Dict[str, Any]] = Field(default=None, description="Optional frontend schema override")
+    cv_link: Optional[Dict[str, Any]] = Field(default=None, description="Optional frontend cell-value linking override")
     attempt: int = Field(default=1, description="Current attempt number (1-based)")
     max_attempts: int = Field(default=3, description="Maximum allowed attempts")
 
@@ -157,6 +192,7 @@ class ValidateSQLResponse(BaseModel):
     # If invalid and retries remain, a corrective prompt is returned
     next_prompt: Optional[str] = None
     attempts_remaining: int = 0
+    debug_info: Optional[Dict[str, Any]] = None
 
 # ================================
 # DAIL-SQL Core Processor
@@ -189,6 +225,9 @@ class DAILSQLProcessor:
         self.repr_type = REPR_TYPE.OPENAI_DEMOSTRATION
         self.example_type = EXAMPLE_TYPE.QA  
         self.selector_type = SELECTOR_TYPE.MASKED_CACHED  # Use masked cached selector for EUCDISQUESTIONMASK performance
+        self.debug_enabled = os.getenv("DAIL_SQL_DEBUG", "1").lower() in ("1", "true", "yes")
+        self.user_fewshot_model_name = "sentence-transformers/all-mpnet-base-v2"
+        self.user_fewshot_model = None
         
         self._initialize_components()
         self._initialize_custom_tables()
@@ -209,6 +248,138 @@ class DAILSQLProcessor:
         except Exception as e:
             print(f"❌ Component initialization failed: {str(e)}")
             raise e
+
+    def _debug(self, message: str, payload: Optional[Dict[str, Any]] = None):
+        if not self.debug_enabled:
+            return
+        if payload is None:
+            print(f"🐞 [DEBUG] {message}")
+        else:
+            print(f"🐞 [DEBUG] {message} | {json.dumps(payload, ensure_ascii=False)}")
+
+    def _normalize_db_key(self, db_value: Optional[str]) -> str:
+        if not db_value:
+            return ""
+        value = str(db_value).strip()
+        if not value:
+            return ""
+
+        normalized = value.replace('\\\\', '/').replace('\\', '/')
+        base_name = os.path.basename(normalized)
+        stem, ext = os.path.splitext(base_name)
+        if ext.lower() in (".sqlite", ".db", ".sqlite3"):
+            return stem.lower()
+        return base_name.lower()
+
+    def _get_user_fewshot_model(self):
+        if self.user_fewshot_model is not None:
+            return self.user_fewshot_model
+
+        from sentence_transformers import SentenceTransformer
+        self.user_fewshot_model = SentenceTransformer(self.user_fewshot_model_name, device="cpu")
+        return self.user_fewshot_model
+
+    def _select_user_fewshots(
+        self,
+        question: str,
+        database_id: str,
+        user_fewshots: Optional[List[Dict[str, Any]]],
+        max_count: int = 1,
+    ) -> List[Dict[str, Any]]:
+        if not question or not user_fewshots:
+            return []
+
+        target_db = self._normalize_db_key(database_id)
+        same_db_candidates: List[Dict[str, Any]] = []
+        for item in user_fewshots:
+            if not isinstance(item, dict):
+                continue
+            nlq = str(item.get("nlq", "")).strip()
+            sql = str(item.get("sql", "")).strip()
+            item_db = self._normalize_db_key(item.get("db_id") or item.get("database_id") or item.get("database"))
+            if not nlq or not sql:
+                continue
+            if item_db != target_db:
+                continue
+            same_db_candidates.append(item)
+
+        if not same_db_candidates:
+            return []
+
+        top_k = max(1, int(max_count or 1))
+
+        try:
+            model = self._get_user_fewshot_model()
+            query_emb = model.encode([question], convert_to_numpy=True, normalize_embeddings=True)[0]
+
+            candidate_embs = []
+            missing_indexes = []
+            for i, candidate in enumerate(same_db_candidates):
+                if 'embedding' in candidate and candidate['embedding'] is not None:
+                    vec = candidate['embedding']
+                    if isinstance(vec, list):
+                        candidate_embs.append(np.array(vec, dtype=np.float32))
+                        continue
+                missing_indexes.append(i)
+                candidate_embs.append(None)
+
+            if missing_indexes:
+                missing_texts = [same_db_candidates[i].get('nlq', '') for i in missing_indexes]
+                computed = model.encode(missing_texts, convert_to_numpy=True, normalize_embeddings=True)
+                for idx, ci in enumerate(missing_indexes):
+                    candidate_embs[ci] = computed[idx]
+
+            candidate_emb = np.vstack(candidate_embs)
+            similarities = np.dot(candidate_emb, query_emb)
+
+            ranked_indices = np.argsort(-similarities)[:top_k]
+            selected: List[Dict[str, Any]] = []
+            for ranked_idx in ranked_indices:
+                idx = int(ranked_idx)
+                candidate = same_db_candidates[idx]
+                selected.append({
+                    "source": "user_memory",
+                    "user_index": candidate.get("index"),
+                    "db_id": candidate.get("db_id") or candidate.get("database_id") or candidate.get("database") or database_id,
+                    "question": candidate.get("nlq", ""),
+                    "query": candidate.get("sql", ""),
+                    "similarity": float(similarities[idx]),
+                })
+            return selected
+        except Exception as e:
+            print(f"⚠️ User few-shot similarity selection failed: {e}")
+            fallback = []
+            for candidate in same_db_candidates[:top_k]:
+                fallback.append({
+                    "source": "user_memory",
+                    "user_index": candidate.get("index"),
+                    "db_id": candidate.get("db_id") or candidate.get("database_id") or candidate.get("database") or database_id,
+                    "question": candidate.get("nlq", ""),
+                    "query": candidate.get("sql", ""),
+                    "similarity": None,
+                })
+            return fallback
+
+    def _inject_user_fewshots_into_prompt(self, full_prompt: str, user_examples: List[Dict[str, Any]], general_examples: List[Dict[str, Any]]) -> str:
+        sections: List[str] = []
+        sections.append("/* Some SQL examples are provided based on similar problems: */")
+
+        if user_examples:
+            sections.append("\n/*USER EXAMPLES (Database-specific patterns)*/")
+            for example in user_examples:
+                sections.append(f"Question: {example.get('question', '')}")
+                sections.append(f"SQL: {example.get('query', '')}")
+                sections.append("")
+
+        if general_examples:
+            sections.append("/* GENERAL EXAMPLES (SQL structure patterns) */")
+            for example in general_examples:
+                sections.append(f"Question: {example.get('question', '')}")
+                sections.append(f"SQL: {example.get('query', '')}")
+                sections.append("")
+
+        sections.append(full_prompt)
+        return "\n".join(sections)
     
     def _load_schema_info(self, database_id: str) -> Dict:
         """Load database schema information (supports pre-configured and custom databases)"""
@@ -233,9 +404,18 @@ class DAILSQLProcessor:
         
         return None
     
-    def _build_fallback_prompt(self, question: str, database_id: str, k_shot: int, schema_info: Dict) -> Dict:
+    def _build_fallback_prompt(self, question: str, database_id: str, k_shot: int, schema_info: Dict, reason: str = "unspecified") -> Dict:
         """Fallback simple prompt when DAIL-SQL components fail"""
-        print("⚠️ Using fallback simple prompt")
+        if reason.startswith("schema-only mode"):
+            print("ℹ️ Using schema-only simple prompt")
+        else:
+            print("⚠️ Using fallback simple prompt")
+        self._debug("Fallback prompt activated", {
+            "database_id": database_id,
+            "reason": reason,
+            "schema_tables": len(schema_info.get("tables", {}).get("table_names_original", [])) if isinstance(schema_info.get("tables"), dict) else None,
+            "question_len": len(question or "")
+        })
         
         # Build simple prompt
         prompt_parts = []
@@ -257,7 +437,11 @@ class DAILSQLProcessor:
         return {
             "prompt": full_prompt,
             "examples": [],
-            "schema": schema_info['schema_text']
+            "schema": schema_info['schema_text'],
+            "debug": {
+                "prompt_mode": "schema_only_simple" if reason.startswith("schema-only mode") else "fallback",
+                "fallback_reason": reason
+            }
         }
     
     def _initialize_custom_tables(self):
@@ -452,7 +636,20 @@ class DAILSQLProcessor:
             
             # 2. Schema linking & preprocessing
             processing_steps.append("🔄 Schema linking preprocessing")
-            schema_info = await self._run_preprocessing(request.question, request.database_id)
+            if request.cv_link is not None:
+                self._debug("process_text_to_sql cv_link", {
+                    "cv_link_keys": list(request.cv_link.keys()),
+                    "cv_link_cell_count": len(request.cv_link.get('cell_match', {})) if isinstance(request.cv_link, dict) else 0,
+                    "cv_link_num_date_count": len(request.cv_link.get('num_date_match', {})) if isinstance(request.cv_link, dict) else 0,
+                    "cv_link_full": request.cv_link
+                })
+            schema_info = await self._run_preprocessing(
+                request.question,
+                request.database_id,
+                schema_dict_override=request.schema,
+                cv_link_override=request.cv_link,
+                question_for_copying_override=request.question_for_copying
+            )
             processing_steps.append(f"✅ Preprocessing completed - found {len(schema_info['tables']['table_names_original'])} tables")
             
             # 3. Few-shot示例选择 & Prompt构建
@@ -462,7 +659,9 @@ class DAILSQLProcessor:
                 request.question, 
                 request.database_id, 
                 k_shot,
-                schema_info
+                schema_info,
+                user_fewshots=request.user_fewshots,
+                user_fewshot_count=request.user_fewshot_count if request.user_fewshot_count is not None else 1,
             )
             processing_steps.append(f"✅ Prompt builded - length: {len(prompt_info['prompt'])} chars")
             
@@ -504,7 +703,14 @@ class DAILSQLProcessor:
                 error=str(e)
             )
     
-    async def _run_preprocessing(self, question: str, database_id: str) -> Dict:
+    async def _run_preprocessing(
+            self,
+            question: str,
+            database_id: str,
+            schema_dict_override: Optional[Dict[str, Any]] = None,
+            cv_link_override: Optional[Dict[str, Any]] = None,
+            question_for_copying_override: Optional[List[str]] = None
+        ) -> Dict:
         """Run genuine DAIL-SQL preprocessing and Schema linking"""
         try:
             # Initialize the data loader on demand
@@ -516,17 +722,28 @@ class DAILSQLProcessor:
                 )
             
             # Get database schema information (Dict format)
-            schema_dict = self._load_schema_info(database_id)
-            if not schema_dict:
-                raise Exception(f"did not found the schema information of {database_id}")
+            if schema_dict_override is not None:
+                schema_dict = schema_dict_override
+                print(f"🔄 Using schema provided by frontend (schema-only mode) for {database_id}")
+            else:
+                schema_dict = self._load_schema_info(database_id)
+                if not schema_dict:
+                    raise Exception(f"did not found the schema information of {database_id}")
             
             # Initialize preprocessor on demand  
             if not self.preprocessor:
                 print("🔄 Initializing DAIL-SQL preprocessor...")
+                # Use NLTK lemmatizer for schema linking tokenization and lemmatization.
+                # We keep semantic matching off (use_meaning=False) and don't rely on vector embeddings.
+                from utils.pretrained_embeddings import NLTKLemmatizer
+
+                word_emb = NLTKLemmatizer(lemmatize=True)
                 self.preprocessor = SpiderEncoderV2Preproc(
                     save_path=self.dataset_dir,
                     compute_sc_link=True,
-                    compute_cv_link=True
+                    compute_cv_link=True,
+                    word_emb=word_emb,
+                    use_meaning=False,
                 )
             
             # DAIl-SQL preprocess
@@ -657,6 +874,16 @@ class DAILSQLProcessor:
             # Format the schema into text
             schema_text = self._format_schema_from_json(schema_dict)
             
+            # 驱动命中前端 cv_link，避免后端值匹配失败导致空结果
+            if cv_link_override is not None:
+                preprocessed_data['cv_link'] = cv_link_override
+                print(f"📲 Overridden cell Value Linking from frontend (cv_link_override): {json.dumps(cv_link_override, ensure_ascii=False, indent=2)}")
+
+            # 如果前端传来了后端 token 化结果，直接使用它，保证 cv_link q_id 一致
+            if question_for_copying_override is not None:
+                preprocessed_data['question_for_copying'] = question_for_copying_override
+                print(f"📝 Overridden question_for_copying from frontend: {question_for_copying_override}")
+
             return {
                 "tables": schema_dict,
                 "schema_text": schema_text,
@@ -719,10 +946,24 @@ class DAILSQLProcessor:
         
         return "\n".join(schema_lines)
     
-    async def _build_prompt(self, question: str, database_id: str, k_shot: int, schema_info: Dict) -> Dict:
+    async def _build_prompt(
+        self,
+        question: str,
+        database_id: str,
+        k_shot: int,
+        schema_info: Dict,
+        user_fewshots: Optional[List[Dict[str, Any]]] = None,
+        user_fewshot_count: int = 1,
+    ) -> Dict:
         """DAIL-SQL Prompt builder"""
         try:
-            print(f"🔄 Build DAIL-SQL Prompt (k_shot={k_shot})...")
+            print(f"🎯 [DEBUG] _build_prompt called with:")
+            print(f"  - k_shot: {k_shot}")
+            print(f"  - user_fewshot_count: {user_fewshot_count}")
+            print(f"  - user_fewshots provided: {user_fewshots is not None}")
+            if user_fewshots:
+                print(f"  - user_fewshots length: {len(user_fewshots)}")
+            print(f"🔄 Build DAIL-SQL Prompt (k_shot={k_shot}, user_fewshot_count={user_fewshot_count})...")
             
             if k_shot > 0:
                 print(f"🔄 Prepare the few-shot selector: {self.selector_type}")
@@ -750,16 +991,41 @@ class DAILSQLProcessor:
             # Get correctly formatted tables (SqliteTable objects needed by DAIL-SQL)
             preprocessed_data = schema_info.get('preprocessed', {})
             
-            # Get correctly formatted tables from data_loader
-            tables = None
-            if self.data_loader and hasattr(self.data_loader, 'get_tables'):
+            # Prefer frontend-provided schema tables first
+            tables = []
+            if schema_info.get('tables'):
                 try:
-                    # Use DAIL-SQL's get_tables method to get SqliteTable objects
-                    tables = self.data_loader.get_tables(database_id)
-                    print(f"✅ Retrieved {len(tables)} tables from data_loader")
+                    schema_dict = schema_info['tables']
+                    from utils.utils import SqliteTable
+
+                    table_columns = {}
+                    for (table_id, col_name), col_type in zip(
+                        schema_dict.get('column_names_original', []),
+                        schema_dict.get('column_types', []),
+                    ):
+                        if table_id == -1:
+                            continue
+                        table_columns.setdefault(table_id, []).append(col_name)
+
+                    for idx, table_name in enumerate(schema_dict.get('table_names_original', [])):
+                        cols = table_columns.get(idx, [])
+                        tables.append(SqliteTable(name=table_name, schema=cols, data=None, table_info={}))
+
+                    print(f"✅ Using frontend schema; built {len(tables)} tables from schema_info")
                 except Exception as e:
-                    print(f"⚠️ Cannot get tables from data_loader: {e}")
-                    tables = None
+                    print(f"⚠️ Failed to build tables from frontend schema_info: {e}")
+                    tables = []
+            
+            # If frontend schema was not provided or failed, continue with default loaders
+            if not tables:
+                if self.data_loader and hasattr(self.data_loader, 'get_tables'):
+                    try:
+                        # Use DAIL-SQL's get_tables method to get SqliteTable objects
+                        tables = self.data_loader.get_tables(database_id)
+                        print(f"✅ Retrieved {len(tables)} tables from data_loader")
+                    except Exception as e:
+                        print(f"⚠️ Cannot get tables from data_loader: {e}")
+                        tables = None
             
             # If data_loader retrieval fails, get directly from database file
             if not tables:
@@ -769,6 +1035,32 @@ class DAILSQLProcessor:
                     print(f"✅ Retrieved {len(tables)} tables from database file")
                 else:
                     print(f"❌ The database file does not exist.: {db_path}")
+                    tables = []
+
+            # If we still don't have tables (e.g., schema-only mode without sqlite), build minimal table objects from schema
+            if not tables and schema_info.get("tables"):
+                try:
+                    schema_dict = schema_info["tables"]
+                    # Create minimal SqliteTable objects based on schema dict (no actual DB file required)
+                    from utils.utils import SqliteTable
+
+                    table_columns = {}
+                    for (table_id, col_name), col_type in zip(
+                        schema_dict.get("column_names_original", []),
+                        schema_dict.get("column_types", []),
+                    ):
+                        if table_id == -1:
+                            continue
+                        table_columns.setdefault(table_id, []).append(col_name)
+
+                    tables = []
+                    for idx, table_name in enumerate(schema_dict.get("table_names_original", [])):
+                        cols = table_columns.get(idx, [])
+                        tables.append(SqliteTable(name=table_name, schema=cols, data=None, table_info={}))
+
+                    print(f"✅ Built {len(tables)} tables from provided schema dict")
+                except Exception as e:
+                    print(f"⚠️ Failed to build tables from schema dict: {e}")
                     tables = []
             
             target = {
@@ -788,7 +1080,25 @@ class DAILSQLProcessor:
             }
             
             target = {k: v for k, v in target.items() if v is not None}
-            
+
+            # 🔒 Debug: Masked question from sc_link + cv_link
+            try:
+                if target.get('question_for_copying') is not None and target.get('sc_link') is not None and target.get('cv_link') is not None:
+                    masked_list = mask_question_with_schema_linking([
+                        {
+                            'question_for_copying': target['question_for_copying'],
+                            'sc_link': target['sc_link'],
+                            'cv_link': target['cv_link']
+                        }
+                    ], mask_tag="<mask>", value_tag="<unk>")
+                    masked_question = masked_list[0] if masked_list else None
+                    print("🔒 Masked question (frontend sc_link + cv_link):")
+                    print(masked_question)
+                else:
+                    print("⚠️ Masked question not generated: missing question_for_copying/sc_link/cv_link")
+            except Exception as e:
+                print(f"⚠️ Error generating masked question: {e}")
+
             # 3. prompt generation
             question_format = prompt.format(
                 target=target,
@@ -802,11 +1112,14 @@ class DAILSQLProcessor:
             
             # 🔍Debug: Display actually selected few-shot examples
             print("\n🔍 === Few-Shot Example Debug Info ===")
+            print(f"🎯 Requested k_shot: {k_shot}")
+            print(f"🎯 Requested user_fewshot_count: {user_fewshot_count}")
             selected_examples = []
+            cache_examples = []
             if hasattr(prompt, 'selected_examples') and prompt.selected_examples:
-                selected_examples = prompt.selected_examples
-                print(f"✅ Selected {len(selected_examples)} few-shot examples:")
-                for i, example in enumerate(selected_examples):
+                cache_examples = prompt.selected_examples
+                print(f"✅ Selected {len(cache_examples)} few-shot examples from cache:")
+                for i, example in enumerate(cache_examples):
                     print(f"\n📚 Example {i+1}:")
                     print(f"  🗃️ Database: {example.get('db_id', 'N/A')}")
                     print(f"  ❓ Question: {example.get('question', 'N/A')}")
@@ -818,6 +1131,20 @@ class DAILSQLProcessor:
                 print(f"🔍 Has selected_examples attribute: {hasattr(prompt, 'selected_examples')}")
                 if hasattr(prompt, 'selected_examples'):
                     print(f"🔍 selected_examples value: {getattr(prompt, 'selected_examples', None)}")
+
+            user_examples = self._select_user_fewshots(
+                question=question,
+                database_id=database_id,
+                user_fewshots=user_fewshots,
+                max_count=user_fewshot_count,
+            )
+            print(f"🎯 [DEBUG] After _select_user_fewshots: got {len(user_examples)} user examples (requested max: {user_fewshot_count})")
+            
+            if user_examples or cache_examples:
+                full_prompt = self._inject_user_fewshots_into_prompt(full_prompt, user_examples, cache_examples)
+                print(f"✅ Injected {len(user_examples)} user few-shot and {len(cache_examples)} general few-shot examples into prompt")
+
+            selected_examples = user_examples + cache_examples
                     
             print(f"🔍 Question format fields: {list(question_format.keys())}")
             print("🔍 === Few-Shot Debug End ===\n")
@@ -840,7 +1167,7 @@ class DAILSQLProcessor:
                 "repr_type": self.repr_type,
                 "example_type": self.example_type,
                 "selector_type": self.selector_type,
-                "n_examples": question_format.get("n_examples", len(selected_examples))
+                "n_examples": question_format.get("n_examples", len(cache_examples)) + len(user_examples)
             }
             
         except Exception as e:
@@ -852,7 +1179,13 @@ class DAILSQLProcessor:
                 if var_val is None:
                     print(f"[Debug] Variable '{var_name}' is NoneType")
             print('--- Detailed anomaly tracking has been completed ---')
-            return self._build_fallback_prompt(question, database_id, k_shot, schema_info)
+            return self._build_fallback_prompt(
+                question,
+                database_id,
+                k_shot,
+                schema_info,
+                reason=f"prompt-builder exception: {str(e)}"
+            )
     
     async def _execute_llm_with_validation(self, prompt_info: Dict, request: TextToSQLRequest, processing_steps: List[str]) -> List[SQLResult]:
         """Executing LLM call and SQL validation"""
@@ -880,6 +1213,7 @@ class DAILSQLProcessor:
                 
                 # Extract SQL
                 sql = self._extract_sql_from_response(response)
+                sql = self._normalize_sql_prefix(sql)
                 if not sql:
                     processing_steps.append("❌ Failed to extract SQL from the response")
                     continue
@@ -923,6 +1257,33 @@ class DAILSQLProcessor:
                 sql_path = None 
         
         return ImprovedSQLValidator(db_path, sql_path if sql_path and os.path.exists(sql_path) else None)
+
+    def _normalize_frontend_schema(self, schema: Dict[str, Any], database_id: str) -> Dict[str, Any]:
+        """Normalize frontend-extracted schema into Spider-like schema dict format."""
+        if not schema:
+            raise ValueError("schema cannot be empty")
+
+        table_names = schema.get("table_names_original") or schema.get("table_names")
+        column_names = schema.get("column_names_original") or schema.get("column_names")
+        if not table_names or not column_names:
+            raise ValueError("schema must include table_names/table_names_original and column_names/column_names_original")
+
+        normalized = {
+            "db_id": database_id,
+            "table_names": schema.get("table_names") or table_names,
+            "table_names_original": schema.get("table_names_original") or table_names,
+            "column_names": schema.get("column_names") or column_names,
+            "column_names_original": schema.get("column_names_original") or column_names,
+            "column_types": schema.get("column_types") or ["text"] * len(column_names),
+            "primary_keys": schema.get("primary_keys") or [],
+            "foreign_keys": schema.get("foreign_keys") or [],
+        }
+
+        return normalized
+
+    def _build_validator_from_schema(self, schema: Dict[str, Any]) -> ImprovedSQLValidator:
+        """Build schema-only validator without sqlite dependency."""
+        return ImprovedSQLValidator(schema_dict=schema)
     
     async def _call_llm(self, prompt: str, model: str, temperature: float) -> str:
         """Invoke LLM"""
@@ -933,32 +1294,53 @@ class DAILSQLProcessor:
         except Exception as e:
             raise Exception(f"LLM call failed: {str(e)}")
     
+    def _normalize_sql_prefix(self, sql: str) -> str:
+        if not sql:
+            return sql
+        txt = sql.strip()
+        if not txt:
+            return txt
+
+        if txt.upper().startswith('SQL:'):
+            txt = txt[len('SQL:'):].strip()
+
+        first_token = txt.split()[0].upper() if txt.split() else ''
+        valid_prefixes = {'SELECT', 'WITH', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TRUNCATE'}
+        if first_token in valid_prefixes:
+            return txt
+
+        # If starts with commonly trailing clause, add SELECT
+        if first_token in {'FROM', 'JOIN', 'WHERE', 'GROUP', 'ORDER', 'LIMIT', 'HAVING'}:
+            return f"SELECT {txt}"
+
+        if 'FROM' in txt.upper() and 'SELECT' not in txt.upper():
+            return f"SELECT {txt}"
+
+        return txt
+
     def _extract_sql_from_response(self, response: str) -> str:
         """Custom SQL extraction function to extract complete multiple rows of SQL"""
         try:
             # First, handle the repeated output.
             processed_response = process_duplication(response)
-            
+
             # Method 1: Search for ```sql code block
             if "```sql" in processed_response:
                 parts = processed_response.split("```sql")
                 if len(parts) >= 2:
                     sql_part = parts[1].split("```")[0]
-                    sql = sql_part.strip()
+                    sql = self._normalize_sql_prefix(sql_part.strip())
                     if sql:
-                        # Check if the prefix "SELECT" needs to be added
-                        if not sql.upper().startswith('SELECT'):
-                            sql = f"SELECT {sql}"
                         return sql
-            
+
             # Method 2: Search for the part starting with "SELECT" until the entire SQL statement is completed (supports multiple lines)
             lines = processed_response.strip().split('\n')
             sql_lines = []
             in_sql = False
-            
+
             for line in lines:
                 stripped = line.strip()
-                
+
                 if stripped.upper().startswith('SELECT'):
                     in_sql = True
                     sql_lines.append(stripped)
@@ -971,23 +1353,23 @@ class DAILSQLProcessor:
                         continue
                     else:
                         break
-            
+
             if sql_lines:
-                return ' '.join(sql_lines).strip()
-            
+                return self._normalize_sql_prefix(' '.join(sql_lines).strip())
+
             import re
-            
+
             sql_pattern = r'([a-zA-Z_][a-zA-Z0-9_.]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_.]*)*\s+FROM\s+[a-zA-Z_][a-zA-Z0-9_.]*(?:\s+.*)?)'
             match = re.search(sql_pattern, processed_response, re.IGNORECASE | re.DOTALL)
             if match:
                 sql_fragment = match.group(1).strip()
-                full_sql = f"SELECT {sql_fragment}"
+                full_sql = self._normalize_sql_prefix(f"SELECT {sql_fragment}")
                 print(f"🔧 Automatically add the SELECT prefix: {full_sql}")
                 return full_sql
-                
+
         except Exception as e:
             print(f"❌ SQL extraction failed: {e}, trying fallback method")
-        
+
         return ""
     
     def _build_retry_prompt(self, original_prompt: str, sql: str, errors: List[str]) -> str:
@@ -1113,6 +1495,29 @@ async def text_to_sql(request: TextToSQLRequest):
     return await processor.process_text_to_sql(request)
 
 
+@app.post("/api/v1/tokenize", response_model=TokenizeResponse)
+async def tokenize(request: TokenizeRequest):
+    """返回后端标准的 question_for_copying token 结果"""
+    if not processor:
+        raise HTTPException(status_code=503, detail="服务未就绪")
+
+    database_id = request.database_id or "frontend_db"
+    try:
+        schema_info = await processor._run_preprocessing(
+            request.question,
+            database_id,
+            schema_dict_override=request.schema,
+            cv_link_override=None,
+            question_for_copying_override=None
+        )
+        preprocessed = schema_info.get('preprocessed', {})
+        qfc = preprocessed.get('question_for_copying', [])
+        q_toks = preprocessed.get('question_toks', [])
+        return TokenizeResponse(success=True, question_for_copying=qfc, question_toks=q_toks)
+    except Exception as e:
+        return TokenizeResponse(success=False, question_for_copying=[], question_toks=[], error=str(e))
+
+
 @app.post("/api/v1/generate-prompt", response_model=GeneratePromptResponse)
 async def generate_prompt(request: GeneratePromptRequest):
     """
@@ -1124,35 +1529,111 @@ async def generate_prompt(request: GeneratePromptRequest):
         raise HTTPException(status_code=503, detail="Service not ready")
 
     try:
-        # Verify database exists
-        db_path = processor._get_db_path(request.database_id)
-        if not db_path:
-            raise HTTPException(status_code=400, detail=f"Database '{request.database_id}' not found")
+        resolved_database_id = request.database_id or "frontend_db"
+        debug_info: Dict[str, Any] = {
+            "schema_only_mode": request.schema is not None,
+            "database_id": resolved_database_id
+        }
+        processor._debug("generate-prompt request received", {
+            "database_id": resolved_database_id,
+            "schema_only_mode": request.schema is not None,
+            "k_shot": request.k_shot,
+            "cv_link_provided": request.cv_link is not None
+        })
 
-        # Run preprocessing + prompt building
-        schema_info = await processor._run_preprocessing(request.question, request.database_id)
-        k_shot = request.k_shot if request.k_shot is not None else 3
-        prompt_info = await processor._build_prompt(
-            request.question, request.database_id, k_shot, schema_info
-        )
+        if request.cv_link is not None:
+            processor._debug("generate-prompt received cv_link", {
+                "cv_link_keys": list(request.cv_link.keys()),
+                "cv_link_cell_count": len(request.cv_link.get('cell_match', {})) if isinstance(request.cv_link, dict) else 0,
+                "cv_link_num_date_count": len(request.cv_link.get('num_date_match', {})) if isinstance(request.cv_link, dict) else 0
+            })
+
+        # New flow: frontend directly provides schema; server does not need sqlite.
+        if request.schema is not None:
+            schema_dict = processor._normalize_frontend_schema(request.schema, resolved_database_id)
+
+            # Run genuine DAIL-SQL pipeline using the provided schema
+            schema_info = await processor._run_preprocessing(
+                request.question,
+                resolved_database_id,
+                schema_dict_override=schema_dict,
+                cv_link_override=request.cv_link
+            )
+
+            k_shot = request.k_shot if request.k_shot is not None else 3
+            user_fewshot_count = request.user_fewshot_count if request.user_fewshot_count is not None else 1
+            
+            print(f"🎯 [DEBUG] /generate-prompt parameters received:")
+            print(f"  - k_shot: {request.k_shot} (after default: {k_shot})")
+            print(f"  - user_fewshot_count: {request.user_fewshot_count} (after default: {user_fewshot_count})")
+            print(f"  - user_fewshots provided: {request.user_fewshots is not None and len(request.user_fewshots) > 0}")
+            if request.user_fewshots:
+                print(f"  - user_fewshots count: {len(request.user_fewshots)}")
+            
+            prompt_info = await processor._build_prompt(
+                request.question,
+                resolved_database_id,
+                k_shot,
+                schema_info,
+                user_fewshots=request.user_fewshots,
+                user_fewshot_count=user_fewshot_count,
+            )
+
+            debug_info.update({
+                "prompt_mode": prompt_info.get("debug", {}).get("prompt_mode", "dail-sql"),
+                "schema_table_count": len(schema_dict.get("table_names_original", [])),
+                "schema_column_count": len(schema_dict.get("column_names_original", [])),
+                "schema_source": "frontend"
+            })
+        else:
+            # Legacy flow: server reads sqlite by database_id.
+            if not request.database_id:
+                raise HTTPException(status_code=400, detail="database_id is required when schema is not provided")
+            db_path = processor._get_db_path(request.database_id)
+            if not db_path:
+                raise HTTPException(status_code=400, detail=f"Database '{request.database_id}' not found")
+
+            # Run preprocessing + prompt building
+            schema_info = await processor._run_preprocessing(request.question, request.database_id, cv_link_override=request.cv_link)
+
+            k_shot = request.k_shot if request.k_shot is not None else 3
+            prompt_info = await processor._build_prompt(
+                request.question,
+                request.database_id,
+                k_shot,
+                schema_info,
+                user_fewshots=request.user_fewshots,
+                user_fewshot_count=request.user_fewshot_count if request.user_fewshot_count is not None else 1,
+            )
+            debug_info.update({
+                "prompt_mode": prompt_info.get("debug", {}).get("prompt_mode", "dail-sql"),
+                "schema_table_count": len(schema_info.get("tables", {}).get("table_names_original", []))
+            })
 
         prompt_text = prompt_info["prompt"]
         session_id = str(uuid.uuid4())
 
+        debug_info["selected_examples"] = prompt_info.get("examples", [])
+        debug_info["selected_examples_count"] = len(prompt_info.get("examples", []))
+
         # Persist session state so validate-sql can locate context later
         _session_store[session_id] = {
             "question": request.question,
-            "database_id": request.database_id,
+            "database_id": resolved_database_id,
             "original_prompt": prompt_text,
             "current_prompt": prompt_text,
+            "schema_dict": schema_info.get("tables"),
+            "schema_only_mode": request.schema is not None,
+            "debug_info": debug_info,
         }
 
         return GeneratePromptResponse(
             success=True,
             session_id=session_id,
             prompt=prompt_text,
-            database_id=request.database_id,
+            database_id=resolved_database_id,
             question=request.question,
+            debug_info=debug_info,
         )
 
     except HTTPException:
@@ -1162,9 +1643,13 @@ async def generate_prompt(request: GeneratePromptRequest):
             success=False,
             session_id="",
             prompt="",
-            database_id=request.database_id,
+            database_id=request.database_id or "",
             question=request.question,
             error=str(e),
+            debug_info={
+                "schema_only_mode": request.schema is not None,
+                "exception": str(e)
+            },
         )
 
 
@@ -1187,8 +1672,39 @@ async def validate_sql(request: ValidateSQLRequest):
     attempts_remaining = max(0, request.max_attempts - request.attempt)
 
     try:
-        validator = processor._build_validator(database_id)
-        validation_result = validator.validate_comprehensive(request.sql)
+        processor._debug("validate-sql request received", {
+            "session_id": request.session_id,
+            "attempt": request.attempt,
+            "max_attempts": request.max_attempts,
+            "schema_override": request.schema is not None,
+            "database_id": database_id
+        })
+        schema_override = request.schema
+        if schema_override is not None:
+            normalized_schema = processor._normalize_frontend_schema(schema_override, database_id)
+            session["schema_dict"] = normalized_schema
+
+        schema_dict = session.get("schema_dict")
+        schema_only_mode = session.get("schema_only_mode", False) or (schema_dict is not None)
+
+        request.sql = processor._normalize_sql_prefix(request.sql)
+        if schema_only_mode and schema_dict is not None:
+            validator = processor._build_validator_from_schema(schema_dict)
+            validation_result = validator.validate_comprehensive(request.sql, include_execution=False)
+        else:
+            validator = processor._build_validator(database_id)
+            validation_result = validator.validate_comprehensive(request.sql)
+
+        debug_info = {
+            "schema_only_mode": schema_only_mode,
+            "include_execution": not schema_only_mode,
+            "error_summary": validation_result.get("error_summary", ""),
+            "stage1_passed": validation_result.get("stage1_syntax", {}).get("passed", None),
+            "stage2_passed": validation_result.get("stage2_logic", {}).get("passed", None),
+            "stage3_status": validation_result.get("stage3_execution", {}).get("status", "")
+        }
+        processor._debug("validate-sql result summary", debug_info)
+
         passed = validation_result.get("overall_passed", False)
         errors = validation_result.get("all_errors", [])
 
@@ -1201,6 +1717,7 @@ async def validate_sql(request: ValidateSQLRequest):
                 errors=[],
                 next_prompt=None,
                 attempts_remaining=0,
+                debug_info=debug_info,
             )
         else:
             # Build a corrective prompt if retries remain
@@ -1221,11 +1738,26 @@ async def validate_sql(request: ValidateSQLRequest):
                 errors=errors,
                 next_prompt=next_prompt,
                 attempts_remaining=attempts_remaining,
+                debug_info=debug_info,
             )
 
     except Exception as e:
         _session_store.pop(request.session_id, None)
         raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
+
+
+@app.post("/api/v1/encode", response_model=TextEmbeddingResponse)
+async def encode_text(request: TextEmbeddingRequest):
+    """Get normalized embeddings for a list of input texts"""
+    if not processor:
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+    try:
+        model = processor._get_user_fewshot_model()
+        embeddings = model.encode(request.texts, convert_to_numpy=True, normalize_embeddings=True)
+        return TextEmbeddingResponse(success=True, embeddings=embeddings.tolist())
+    except Exception as e:
+        return TextEmbeddingResponse(success=False, embeddings=None, error=str(e))
 
 
 @app.post("/api/v1/upload-database", response_model=UploadDatabaseResponse)

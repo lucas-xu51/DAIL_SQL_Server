@@ -137,6 +137,8 @@ def compute_cell_value_linking(tokens, schema):
             return False
 
     def db_word_partial_match(word, column, table, db_conn):
+        if db_conn is None:
+            return False
         cursor = db_conn.cursor()
 
         p_str = f"select {column} from {table} where {column} like '{word} %' or {column} like '% {word}' or " \
@@ -148,10 +150,12 @@ def compute_cell_value_linking(tokens, schema):
                 return False
             else:
                 return p_res
-        except Exception as e:
+        except Exception:
             return False
 
     def db_word_exact_match(word, column, table, db_conn):
+        if db_conn is None:
+            return False
         cursor = db_conn.cursor()
 
         p_str = f"select {column} from {table} where {column} like '{word}' or {column} like ' {word}' or " \
@@ -163,11 +167,15 @@ def compute_cell_value_linking(tokens, schema):
                 return False
             else:
                 return p_res
-        except Exception as e:
+        except Exception:
             return False
 
     num_date_match = {}
     cell_match = {}
+
+    # If no database connection is provided (schema-only mode without SQLite data), skip value-based linking.
+    if schema.connection is None:
+        return {"num_date_match": {}, "cell_match": {}}
 
     for col_id, column in enumerate(schema.columns):
         if col_id == 0:
